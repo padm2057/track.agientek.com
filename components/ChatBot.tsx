@@ -1,0 +1,272 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { GoogleGenAI, Chat } from "@google/genai";
+import ReactMarkdown from 'react-markdown';
+import { ProjectPlan, ProcessedTask } from '../types';
+
+interface ChatBotProps {
+  projectPlan: ProjectPlan;
+  processedTasks: ProcessedTask[];
+}
+
+interface Message {
+  role: 'user' | 'model';
+  text: string;
+  isError?: boolean;
+}
+
+export const ChatBot: React.FC<ChatBotProps> = ({ projectPlan, processedTasks }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([
+    { role: 'model', text: 'Hi! I\'m your AI Project Boss. Ask me anything about your plan.' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatSession = useRef<Chat | null>(null);
+
+  // Invalidate chat session ONLY when structural project data changes.
+  useEffect(() => {
+     chatSession.current = null;
+  }, [projectPlan.smart_goal, projectPlan.tasks.length, projectPlan.id]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(scrollToBottom, [messages, isOpen, isLoading]);
+
+  const triggerKeySelection = async () => {
+      try {
+          // @ts-ignore
+          if (typeof window !== 'undefined' && window.aistudio && window.aistudio.openSelectKey) {
+                // @ts-ignore
+                await window.aistudio.openSelectKey();
+                return true;
+          } else {
+             alert("API Key Manager not detected. Please run in a compatible environment or project editor.");
+          }
+      } catch (e) {
+          console.error("Key selection failed", e);
+      }
+      return false;
+  };
+
+  const initializeChat = async () => {
+    try {
+        let apiKey = process.env.API_KEY;
+
+        // Active check for AI Studio environment
+        // @ts-ignore
+        if (typeof window !== 'undefined' && window.aistudio) {
+             // @ts-ignore
+             const hasKey = await window.aistudio.hasSelectedApiKey().catch(() => false);
+             if (!hasKey) {
+                await triggerKeySelection();
+                // Refresh env var read
+                apiKey = process.env.API_KEY;
+             }
+        }
+
+        // If still no key, try one force prompt then fail gracefully
+        if (!apiKey) {
+             await triggerKeySelection();
+             apiKey = process.env.API_KEY;
+        }
+
+        if (!apiKey) {
+            throw new Error("KEY_MISSING");
+        }
+
+        const ai = new GoogleGenAI({ apiKey });
+        
+        // Prepare context summary
+        const scheduleContext = processedTasks.map(t => ({
+            id: t.id,
+            name: t.task_name,
+            phase: t.phase,
+            start: t.startDate.toDateString(),
+            end: t.endDate.toDateString(),
+            duration: t.duration_hours,
+            predecessors: t.predecessors
+        }));
+
+        const contextStr = JSON.stringify({
+            goal: projectPlan.smart_goal,
+            totalEstHours: projectPlan.total_estimated_duration_hours,
+            schedule: scheduleContext
+        });
+
+        // Using gemini-3-flash-preview
+        chatSession.current = ai.chats.create({
+            model: 'gemini-3-flash-preview',
+            config: {
+                systemInstruction: `You are an AI Project Manager for the app 'doTrackit'.
+                Your goal is to help the user execute their project.
+                
+                Current Project Context:
+                ${contextStr}
+                
+                Guidelines:
+                1. Answer questions about dates, dependencies, and risks based on the Schedule provided.
+                2. Be concise, direct, and encouraging but realistic ("tough love").
+                3. Use Markdown formatting (bold, lists, etc.) to make your responses easy to read.
+                4. If the user asks to change the plan, guide them to use the Edit Data button.
+                `
+            }
+        });
+        return true;
+        
+    } catch (error: any) {
+        console.error("Failed to init AI chat", error);
+        if (error.message === "KEY_MISSING" || error.message?.includes("API Key") || error.message?.includes("Requested entity was not found")) {
+             setMessages(prev => [...prev, { role: 'model', text: "I need an API Key to continue. Please select one using the AI Studio button.", isError: true }]);
+             // Attempt to open selector one last time
+             triggerKeySelection();
+        } else {
+             setMessages(prev => [...prev, { role: 'model', text: "Connection error. Please try again.", isError: true }]);
+        }
+        return false;
+    }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+
+    const userMessage = input;
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    setIsLoading(true);
+
+    try {
+      // Lazy initialization
+      if (!chatSession.current) {
+         const success = await initializeChat();
+         if (!success) {
+             setIsLoading(false);
+             return;
+         }
+      }
+
+      if (chatSession.current) {
+        const response = await chatSession.current.sendMessage({ message: userMessage });
+        const text = response.text;
+        setMessages(prev => [...prev, { role: 'model', text: text || "I didn't have a response." }]);
+      }
+    } catch (error: any) {
+      console.error("Gemini Error:", error);
+      // Check for session expiry or key issues during chat
+      if (error.message?.includes("API key") || error.message?.includes("403")) {
+          setMessages(prev => [...prev, { role: 'model', text: "API Key session expired. Please reconnect.", isError: true }]);
+          triggerKeySelection();
+      } else {
+          setMessages(prev => [...prev, { role: 'model', text: "I lost the connection. Please try again.", isError: true }]);
+      }
+      chatSession.current = null; 
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Toggle Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="fixed bottom-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-full shadow-2xl z-50 transition-transform hover:scale-105 print:hidden"
+        title="Ask AI Boss"
+      >
+        {isOpen ? (
+           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+          </svg>
+        )}
+      </button>
+
+      {/* Chat Window */}
+      {isOpen && (
+        <div className="fixed bottom-24 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 h-[60vh] sm:h-[500px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 flex flex-col overflow-hidden animate-fade-in print:hidden">
+            <div className="bg-slate-900 dark:bg-slate-950 p-4 text-white flex justify-between items-center">
+                <div className="font-bold flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                    AI Boss
+                </div>
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-slate-400">Powered by Gemini</span>
+                    <span className="text-[9px] text-indigo-400 bg-indigo-900/50 px-1 rounded">3.0 Flash</span>
+                </div>
+            </div>
+            
+            <div className="flex-1 p-4 overflow-y-auto bg-slate-50 dark:bg-slate-800/50 space-y-4">
+                {messages.map((msg, idx) => (
+                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div 
+                            className={`max-w-[90%] rounded-2xl px-4 py-2 text-sm ${
+                                msg.role === 'user' 
+                                ? 'bg-indigo-600 text-white rounded-br-sm' 
+                                : msg.isError 
+                                    ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800'
+                                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-bl-sm shadow-sm'
+                            }`}
+                        >
+                            <div className={`prose prose-sm max-w-none break-words leading-relaxed [&>p]:my-1 [&>ul]:my-1 [&>ol]:my-1 ${
+                                msg.role === 'user' 
+                                ? 'prose-invert prose-p:text-white prose-a:text-white' 
+                                : 'dark:prose-invert'
+                            }`}>
+                                <ReactMarkdown>{msg.text}</ReactMarkdown>
+                            </div>
+                            
+                            {msg.isError && (
+                                <button 
+                                    onClick={() => triggerKeySelection()}
+                                    className="block mt-2 text-xs font-bold underline cursor-pointer hover:text-red-800 dark:hover:text-red-300"
+                                >
+                                    Select API Key
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+                {isLoading && (
+                    <div className="flex justify-start">
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 rounded-2xl px-4 py-3 text-sm shadow-sm flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-100"></span>
+                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-200"></span>
+                        </div>
+                    </div>
+                )}
+                <div ref={messagesEndRef} />
+            </div>
+
+            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex gap-2">
+                    <input
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                        placeholder="Ask about dates, risks..."
+                        className="flex-1 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200 placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        autoFocus
+                    />
+                    <button 
+                        onClick={handleSend}
+                        disabled={isLoading || !input.trim()}
+                        className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+    </>
+  );
+};
