@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { auth } from './utils/firebase';
+import { AuthScreen } from './components/AuthScreen';
 import { ProjectPlan, Task, ProcessedTask, CalendarNote, TaskNote } from './types';
 import { DEFAULT_PROJECT_PLAN } from './constants';
 import { calculateProjectSchedule, calculateDailyWorkload } from './utils/scheduler';
@@ -46,6 +49,10 @@ const Clock = () => {
 };
 
 export default function App() {
+  // Authentication State
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   // State
   const [projectData, setProjectData] = useState<ProjectPlan>(() => {
     if (typeof localStorage !== 'undefined') {
@@ -89,6 +96,14 @@ export default function App() {
 
   // Effects
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('agientek_plan', JSON.stringify(projectData));
   }, [projectData]);
 
@@ -110,6 +125,14 @@ export default function App() {
 
   const formatShortDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out", error);
+    }
   };
 
   // --- SCHEDULE CALCULATIONS ---
@@ -516,6 +539,19 @@ export default function App() {
     }));
   };
 
+  // Guard Clause for Authentication
+  if (authLoading) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen />;
+  }
+
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'dark bg-slate-950' : 'bg-slate-50'}`}>
         <div className="max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
@@ -574,6 +610,19 @@ export default function App() {
                                 Unlocked
                             </>
                         )}
+                     </button>
+                     
+                     {/* Logout Button */}
+                     <button 
+                        onClick={handleLogout}
+                        className="px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 text-xs font-bold uppercase rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors flex items-center gap-2"
+                        title="Sign Out"
+                     >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" />
+                            <path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" />
+                        </svg>
+                        Sign Out
                      </button>
                 </div>
             </header>
