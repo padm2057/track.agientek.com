@@ -168,7 +168,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                             value={configUrl}
                             onChange={(e) => setConfigUrl(e.target.value)}
                             placeholder="https://xyz.supabase.co"
-                            className="w-full px-3 py-2 border rounded dark:bg-slate-800 dark:border-slate-700 dark:text-white text-sm font-mono"
+                            className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-white text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                    </div>
 
@@ -180,7 +180,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                             value={configKey}
                             onChange={(e) => setConfigKey(e.target.value)}
                             placeholder="eyJhbGciOiJIUzI1NiIsIn..."
-                            className="w-full px-3 py-2 border rounded dark:bg-slate-800 dark:border-slate-700 dark:text-white text-sm font-mono"
+                            className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-white text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                    </div>
 
@@ -202,7 +202,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@company.com"
-                        className="w-full px-3 py-2 border rounded dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                        className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
                     />
                     <button 
                         type="submit" 

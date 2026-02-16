@@ -351,6 +351,96 @@ export default function App() {
     setProjectData(prev => ({ ...prev, tasks: newTasks }));
   };
 
+  const handleRepeatTask = (taskId: string, frequency: 'weekly' | 'monthly') => {
+      if (isLocked) {
+          setFeedback({ isOpen: true, title: "Plan Locked", message: "Cannot generate new recurring tasks in Execution Mode.", type: "error" });
+          return;
+      }
+
+      setProjectData(prev => {
+          const sourceTask = prev.tasks.find(t => t.id === taskId);
+          if (!sourceTask) return prev;
+
+          const newTasks = [...prev.tasks];
+          
+          // Determine anchor date
+          let baseDateStr = sourceTask.forcedDate || getInputValue(projectStartDate);
+          // If task has calculated schedule, prefer that for anchor if no forcedDate? 
+          // Actually, let's just stick to forcedDate or project start for simplicity of "corresponding day".
+          // If a task is "monthly" and project starts Jan 20, we want Feb 20, Mar 20.
+          
+          const [y, m, d] = baseDateStr.split('-').map(Number);
+          const anchorDate = new Date(y, m - 1, d);
+          
+          // 6 Month Limit
+          const limitDate = new Date(projectStartDate);
+          limitDate.setMonth(limitDate.getMonth() + 6);
+
+          let nextDate = new Date(anchorDate);
+          let count = 0;
+
+          // Helper to increment date cleanly
+          const advanceDate = (current: Date) => {
+               const n = new Date(current);
+               if (frequency === 'weekly') {
+                   n.setDate(n.getDate() + 7);
+               } else {
+                   // Robust Monthly Add: Maintain day of month where possible
+                   const targetMonth = n.getMonth() + 1;
+                   n.setMonth(targetMonth);
+                   // Check for day overflow (e.g., Jan 31 -> Feb 28)
+                   if (n.getDate() !== current.getDate()) {
+                       // We overflowed. Set to last day of previous month (the target month)
+                       n.setDate(0); 
+                   }
+               }
+               return n;
+          };
+
+          // Advance once for the first clone (Instance 0 is the original)
+          nextDate = advanceDate(nextDate);
+
+          while (nextDate <= limitDate && count < 50) { // Safety break
+              const newId = crypto.randomUUID();
+              const dateStr = getInputValue(nextDate);
+              
+              const clone: Task = {
+                  ...sourceTask,
+                  id: newId,
+                  task_name: `${sourceTask.task_name} (${dateStr})`, // Append date for clarity
+                  forcedDate: dateStr,
+                  isCompleted: false,
+                  completionDate: undefined,
+                  hoursCompleted: 0,
+                  recurrence: null, // Clones are not templates
+                  predecessors: [] // Decouple from dependency chain to prevent cyclic messes. Recurring tasks are time-bound.
+              };
+              
+              newTasks.push(clone);
+              nextDate = advanceDate(nextDate);
+              count++;
+          }
+          
+          // Mark original as the template
+          const updatedSourceIndex = newTasks.findIndex(t => t.id === taskId);
+          if (updatedSourceIndex >= 0) {
+              newTasks[updatedSourceIndex] = {
+                  ...newTasks[updatedSourceIndex],
+                  recurrence: frequency
+              };
+          }
+
+          return { ...prev, tasks: newTasks };
+      });
+
+      setFeedback({
+          isOpen: true,
+          title: "Tasks Generated",
+          message: `Generated recurring instances for the next 6 months based on ${frequency} schedule.`,
+          type: "success"
+      });
+  };
+
   const handleApplyOptimizations = (newTasks: Task[]) => {
       setProjectData(prev => ({
           ...prev,
@@ -510,6 +600,8 @@ export default function App() {
                     tasks={projectData.tasks}
                     smartGoal={projectData.smart_goal}
                     onApplyOptimizations={handleApplyOptimizations}
+                    projectStartDate={projectStartDate}
+                    calculatedFinishDate={finishDate}
                 />
             </div>
 
@@ -520,6 +612,9 @@ export default function App() {
                 onRevertForceTask={handleRevertForcedTask}
                 onUpdateTask={handleTaskUpdate}
                 isLocked={isLocked}
+                onRepeatTask={handleRepeatTask}
+                onMoveUp={(idx) => moveTask(idx, 'up')}
+                onMoveDown={(idx) => moveTask(idx, 'down')}
             />
 
             {/* Row 1: Analytics Grid (4-column) */}

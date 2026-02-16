@@ -11,6 +11,8 @@ interface InsightPanelProps {
   forceExpanded?: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  projectStartDate: Date;
+  calculatedFinishDate: Date;
 }
 
 export const InsightPanel: React.FC<InsightPanelProps> = ({ 
@@ -20,7 +22,9 @@ export const InsightPanel: React.FC<InsightPanelProps> = ({
     onApplyOptimizations, 
     forceExpanded = false,
     onMoveUp,
-    onMoveDown
+    onMoveDown,
+    projectStartDate,
+    calculatedFinishDate
 }) => {
   const [aiOpinion, setAiOpinion] = useState<string | null>(null);
   const [suggestedTasks, setSuggestedTasks] = useState<Task[] | null>(null);
@@ -81,7 +85,7 @@ export const InsightPanel: React.FC<InsightPanelProps> = ({
             properties: {
                 opinion: { 
                     type: Type.STRING, 
-                    description: "A single, hard-hitting paragraph of advice (max 60 words). Be brutal but effective." 
+                    description: "A single, hard-hitting paragraph of advice (max 60 words). If feasibility check fails, start with '⚠️ IMPOSSIBLE:'." 
                 },
                 optimized_tasks: {
                     type: Type.ARRAY,
@@ -115,24 +119,29 @@ export const InsightPanel: React.FC<InsightPanelProps> = ({
             isCompleted: t.isCompleted
         }));
 
-        const prompt = `You are a Lead Project Architect. Refactor this project plan to ensure success.
+        const prompt = `You are a Lead Project Architect.
         
-        GOAL: ${smartGoal}
+        PROJECT CONTEXT:
+        - Goal: "${smartGoal}"
+        - Start Date: ${projectStartDate.toDateString()}
+        - Calculated Finish Date: ${calculatedFinishDate.toDateString()} (This is the math-based reality)
+        - Total Work Effort: ${analysis.totalHours} hours
         
-        CURRENT STATS:
-        - Total Est: ${analysis.totalHours}h
-        - Risk: ${analysis.riskLevel}
+        CURRENT RISK STATS:
+        - Risk Level: ${analysis.riskLevel}
         - Issues: ${analysis.scheduleRisks.join('; ')}
 
         INSTRUCTIONS:
-        1. Provide a "opinion" string: Hard-hitting advice.
-        2. Provide "optimized_tasks" array:
-           - BREAK DOWN any task > 8 hours into smaller sub-tasks (e.g. "Dev Dashboard" -> "Dev Dashboard Layout", "Dev Dashboard Widgets").
-           - INSERT explicit "QA/Verify" tasks after major development phases if missing.
-           - ADJUST duration_hours to be more realistic (add buffer).
-           - PRESERVE the IDs of existing tasks if you just modify them. GENERATE new unique string IDs for new sub-tasks.
-           - PRESERVE isCompleted status for existing tasks.
-           - ENSURE dependency chain (predecessors) is logical.
+        1. **CRITICAL FEASIBILITY CHECK**: 
+           - Does the "Goal" string contain a deadline (e.g. "by Jan 1", "in 6 months")?
+           - Compare that deadline against the "Calculated Finish Date" above.
+           - IF Calculated Finish Date is LATER than Goal Deadline: Your "opinion" MUST start with "⚠️ IMPOSSIBLE:" and explain the discrepancy.
+        
+        2. Refactor the tasks:
+           - If the plan is impossible, cut scope or condense timeline in your suggested tasks.
+           - Break down any task > 8 hours.
+           - Insert explicit "Review/Weigh-in" tasks if missing.
+           - Adjust estimates to be realistic.
 
         CURRENT TASKS JSON:
         ${JSON.stringify(minifiedTasks)}
@@ -261,7 +270,6 @@ export const InsightPanel: React.FC<InsightPanelProps> = ({
       </div>
 
       {isExpanded && (
-        // ... (keep existing content)
         <div className="p-6 space-y-5">
             {/* Metric Comparison */}
             <div className="grid grid-cols-2 gap-4">
@@ -363,7 +371,6 @@ export const InsightPanel: React.FC<InsightPanelProps> = ({
                                     </div>
                                     <div className="flex flex-col items-end">
                                         <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">{t.duration_hours}h</span>
-                                        {/* Show simple change indicator if we can, but since IDs might match, simple is better */}
                                         <span className="text-[9px] text-slate-300 dark:text-slate-600">ID:{t.id.substring(0,4)}</span>
                                     </div>
                                 </div>

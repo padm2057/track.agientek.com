@@ -153,15 +153,15 @@ export const GoalCard: React.FC<GoalCardProps> = ({
                             {/* Planned Finish */}
                             <div>
                                 <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-0.5">Planned Finish</div>
-                                <div className="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">{formatShortDate(finishDate)}</div>
+                                <div className="text-xl font-bold leading-tight text-slate-900 dark:text-slate-100">{formatShortDate(finishDate)}</div>
                                 <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">{totalDurationDays} days</div>
                             </div>
 
-                            {/* Realistic Finish */}
+                            {/* Realistic Finish (Reverted from 6-Month Target) */}
                             <div>
-                                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider mb-0.5">Realistic Finish</div>
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-0.5">Realistic Finish</div>
                                 <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{formatShortDate(realisticFinishDate)}</div>
-                                <div className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">{realisticDurationDays} days</div>
+                                <div className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">{realisticDurationDays} days (Buffered)</div>
                             </div>
                         </div>
                     </div>

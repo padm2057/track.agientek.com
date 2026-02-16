@@ -9,6 +9,7 @@ export interface Task {
   completionDate?: string; // ISO Date string of when it was marked done (adjusted for 2am rule)
   forcedDate?: string; // ISO Date string (YYYY-MM-DD) to force start this task
   hoursCompleted?: number; // Track partial progress
+  recurrence?: 'weekly' | 'monthly' | null; // UI marker for recurring templates
 }
 
 export interface ProcessedTask extends Task {
