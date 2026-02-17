@@ -74,8 +74,6 @@ export default function App() {
   const [isLocked, setIsLocked] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   
-  // Note: 'now' state removed from App to prevent re-renders. Clock component handles itself.
-
   // Derived Values
   const projectStartDate = useMemo(() => {
     if (projectData.project_start_date) {
@@ -97,6 +95,7 @@ export default function App() {
   // Effects
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      // Allow access to any authenticated user
       setUser(currentUser);
       setAuthLoading(false);
     });

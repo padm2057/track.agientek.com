@@ -21,29 +21,21 @@ export const AuthScreen = () => {
         await createUserWithEmailAndPassword(auth, email, password);
       }
     } catch (err: any) {
-      // Logic to handle specific error codes and suppress console noise for expected errors
-      const errorCode = err.code;
-      let errorMessage = "An authentication error occurred";
-
-      if (
-        errorCode === 'auth/invalid-credential' || 
-        errorCode === 'auth/user-not-found' || 
-        errorCode === 'auth/wrong-password'
-      ) {
-        errorMessage = "Email or password is incorrect";
-      } else if (errorCode === 'auth/email-already-in-use') {
-        errorMessage = "User already exists. Please sign in";
-      } else if (errorCode === 'auth/invalid-email') {
-        errorMessage = "Please enter a valid email address";
-      } else if (errorCode === 'auth/weak-password') {
-        errorMessage = "Password should be at least 6 characters";
-      } else {
-        // Only log unexpected errors to the console
-        console.error("Auth Error:", errorCode, err.message);
-        errorMessage = err.message || errorMessage;
-      }
+      console.error("Auth Error:", err.code, err.message);
       
-      setError(errorMessage);
+      // Specific error handling as requested
+      if (
+        err.code === 'auth/invalid-credential' || 
+        err.code === 'auth/user-not-found' || 
+        err.code === 'auth/wrong-password' ||
+        err.code === 'auth/invalid-email'
+      ) {
+        setError("Email or password is incorrect");
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError("User already exists. Please sign in");
+      } else {
+        setError(err.message || "An authentication error occurred");
+      }
     } finally {
       setLoading(false);
     }
