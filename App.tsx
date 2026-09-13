@@ -59,7 +59,11 @@ export default function App() {
       const saved = localStorage.getItem('agientek_plan');
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (parsed && (!parsed.smart_goal || parsed.smart_goal.includes('Lose 6 kg'))) {
+            return DEFAULT_PROJECT_PLAN;
+          }
+          return parsed;
         } catch (e) {
           console.error("Failed to parse saved plan", e);
         }
@@ -86,6 +90,7 @@ export default function App() {
   // Modals
   const [isJsonEditorOpen, setIsJsonEditorOpen] = useState(false);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [feedback, setFeedback] = useState<{isOpen: boolean, title: string, message: string, type: 'error'|'info'|'success'}>({
     isOpen: false, title: '', message: '', type: 'info'
   });
@@ -94,12 +99,20 @@ export default function App() {
 
   // Effects
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      // Allow access to any authenticated user
-      setUser(currentUser);
+    try {
+      const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        // Allow access to any authenticated user
+        setUser(currentUser);
+        setAuthLoading(false);
+      }, (err) => {
+        console.warn("Auth state error:", err);
+        setAuthLoading(false);
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn("Firebase auth not initialized:", e);
       setAuthLoading(false);
-    });
-    return () => unsubscribe();
+    }
   }, []);
 
   useEffect(() => {
@@ -538,19 +551,6 @@ export default function App() {
     }));
   };
 
-  // Guard Clause for Authentication
-  if (authLoading) {
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-    );
-  }
-
-  if (!user) {
-    return <AuthScreen />;
-  }
-
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'dark bg-slate-950' : 'bg-slate-50'}`}>
         <div className="max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
@@ -611,18 +611,36 @@ export default function App() {
                         )}
                      </button>
                      
-                     {/* Logout Button */}
-                     <button 
-                        onClick={handleLogout}
-                        className="px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 text-xs font-bold uppercase rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors flex items-center gap-2"
-                        title="Sign Out"
-                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                            <path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" />
-                            <path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" />
-                        </svg>
-                        Sign Out
-                     </button>
+                     {/* User / Sign In Button */}
+                     {user ? (
+                        <div className="flex items-center gap-2">
+                           <span className="hidden sm:inline-block text-xs font-semibold text-slate-600 dark:text-slate-300 max-w-[120px] truncate" title={user.email || ''}>
+                              {user.email}
+                           </span>
+                           <button 
+                              onClick={handleLogout}
+                              className="px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 text-xs font-bold uppercase rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors flex items-center gap-1.5"
+                              title="Sign Out"
+                           >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                  <path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" />
+                                  <path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" />
+                              </svg>
+                              <span className="hidden sm:inline">Sign Out</span>
+                           </button>
+                        </div>
+                     ) : (
+                        <button 
+                           onClick={() => setIsAuthModalOpen(true)}
+                           className="px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-xs font-bold uppercase rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors flex items-center gap-1.5"
+                           title="Sign In / Sync"
+                        >
+                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                           </svg>
+                           <span>Sign In</span>
+                        </button>
+                     )}
                 </div>
             </header>
 
@@ -748,6 +766,13 @@ export default function App() {
             </div>
 
             {/* Modals */}
+            {isAuthModalOpen && (
+                <AuthScreen 
+                    onClose={() => setIsAuthModalOpen(false)}
+                    isModal={true}
+                />
+            )}
+
             <JsonEditor 
                 initialData={projectData}
                 onUpdate={setProjectData}

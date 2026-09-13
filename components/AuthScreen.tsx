@@ -2,7 +2,12 @@ import React, { useState } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../utils/firebase';
 
-export const AuthScreen = () => {
+interface AuthScreenProps {
+  onClose?: () => void;
+  isModal?: boolean;
+}
+
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onClose, isModal = true }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,6 +24,9 @@ export const AuthScreen = () => {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
+      }
+      if (onClose) {
+        onClose();
       }
     } catch (err: any) {
       console.error("Auth Error:", err.code, err.message);
@@ -41,9 +49,24 @@ export const AuthScreen = () => {
     }
   };
 
+  const containerClasses = isModal 
+    ? "fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+    : "min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4";
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-8">
+    <div className={containerClasses}>
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 p-8 relative">
+        {onClose && (
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight flex items-center justify-center gap-2 mb-2">
             <span className="text-indigo-600 dark:text-indigo-400">AGiENTEK</span>

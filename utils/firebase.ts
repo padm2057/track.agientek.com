@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getAnalytics } from "firebase/analytics";
+import { getAnalytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -13,7 +13,25 @@ const firebaseConfig = {
   measurementId: "G-DZDWNGSHJD"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase safely
+export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+export let analytics: any = null;
+
+if (typeof window !== 'undefined') {
+  try {
+    // Only attempt if browser environment allows it
+    const maybePromise = isSupported ? isSupported() : Promise.resolve(false);
+    maybePromise.then(supported => {
+      if (supported) {
+        try {
+          analytics = getAnalytics(app);
+        } catch (err) {
+          console.warn("Analytics not initialized:", err);
+        }
+      }
+    }).catch(() => {});
+  } catch (e) {
+    // Ignore analytics errors in restricted environments
+  }
+}
